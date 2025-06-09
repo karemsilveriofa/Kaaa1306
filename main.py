@@ -14,6 +14,7 @@ INTERVALO = "1min"
 
 bot = telegram.Bot(token=TELEGRAM_TOKEN)
 app = Flask(__name__)
+ultima_direcao = None  # Controle de duplicidade de sinal
 
 @app.route('/')
 def home():
@@ -53,35 +54,38 @@ def obter_candles(ativo):
         return None
 
 def calcular_sinal():
+    global ultima_direcao
     ativo = obter_ativo()
     candles = obter_candles(ativo)
 
     if not candles or len(candles) < 3:
-        msg = f"[AVISO] Dados insuficientes para {ativo}. Nenhum sinal gerado."
-        print(msg)
-        enviar_sinal(msg)
+        print("[AVISO] Dados insuficientes. Nenhum sinal.")
         return
 
-    c1 = float(candles[2]['close'])  # 3 velas atrás
-    c2 = float(candles[1]['close'])  # 2 velas atrás
-    c3 = float(candles[0]['close'])  # última vela
+    c1 = float(candles[2]['close'])
+    c2 = float(candles[1]['close'])
+    c3 = float(candles[0]['close'])
 
-    # Análise de tendência com 3 velas
     if c1 < c2 < c3:
         direcao = "📈 COMPRA"
-        forca = abs((c3 - c1) / c1)
+        forca = (c3 - c1) / c1
     elif c1 > c2 > c3:
         direcao = "📉 VENDA"
-        forca = abs((c3 - c1) / c1)
+        forca = (c1 - c3) / c1
     else:
         direcao = "⏸️ LATERAL"
         forca = 0
 
-    # Filtro: só envia se a força for relevante (> 0.02%, ou seja, 0.0002)
-    if forca < 0.0002:
-        print(f"[FILTRO] Variação fraca: {forca:.5f}. Nenhum sinal enviado.")
+    # Filtro com mais tolerância: > 0.015%
+    if forca < 0.00015:
+        print(f"[FILTRO] Movimento fraco: {forca:.5f}")
         return
 
+    if direcao == ultima_direcao:
+        print(f"[FILTRO] Sinal repetido ({direcao}), ignorado.")
+        return
+
+    ultima_direcao = direcao
     horario_brasilia = datetime.now(pytz.timezone("America/Sao_Paulo")).strftime('%H:%M:%S')
 
     mensagem = (
@@ -100,7 +104,7 @@ def iniciar_bot():
     while True:
         print("[LOOP] Executando nova análise...")
         calcular_sinal()
-        time.sleep(60)
+        time.sleep(30)  # Executa a cada 30 segundos
 
 threading.Thread(target=iniciar_bot).start()
 
