@@ -14,12 +14,11 @@ def get_candles():
         response = requests.get(
             f"{BASE_URL}/quotes/history",
             headers={"Authorization": f"Bearer {API_KEY}"},
-            params={
-                "asset": "EURUSD",
-                "interval": 60,
-                "limit": 3
-            }
+            params={"asset": "EURUSD", "interval": 60, "limit": 3}
         )
+        if response.status_code != 200:
+            print(f"Erro na API Exnova: {response.status_code} - {response.text}")
+            return []
         candles = response.json().get("data", [])
         return candles
     except Exception as e:
@@ -37,7 +36,7 @@ def main_loop():
                 print("Doji detectado, sinal ignorado.")
         else:
             print("Velas insuficientes para prever.")
-        time.sleep(120)  # Espera 2 minutos
+        time.sleep(120)
 
 if __name__ == "__main__":
     main_loop()
